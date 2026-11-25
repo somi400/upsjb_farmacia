@@ -6,27 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-        $table ->foreignId('rol_id')->after('id')
-            ->constrained('roles')->restrictOnDelete();
-        $table ->char('dni', 8)->unique()->after('name');
-        $table ->string('telefono', 15)->nullable()->after('dni');
-        $table ->string('colegiatura', 20)->nullable()->after('telefono');
-});
+            $table->foreignId('rol_id')->nullable()->after('id')->constrained('roles')->restrictOnDelete();
+            $table->string('dni', 15)->nullable()->unique()->after('name');
+            $table->string('telefono', 20)->nullable()->after('dni');
+            $table->string('colegiatura', 30)->nullable()->after('telefono');
+            $table->boolean('status')->default(true)->after('password');
+        });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            //
+            $table->dropForeign(['rol_id']);
+            $table->dropColumn(['rol_id', 'dni', 'telefono', 'colegiatura', 'status']);
         });
     }
 };
