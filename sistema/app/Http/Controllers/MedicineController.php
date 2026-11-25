@@ -9,79 +9,110 @@ use Illuminate\Support\Facades\Storage;
 
 class MedicineController extends Controller
 {
-    public function index()
+    // Unidades a partir de las cuales el stock se considera bajo
+    const LOW_STOCK = 10;
+
+    // Listado de medicamentos con búsqueda y filtros
+    public function index(Request $request)
     {
-        $medicines = Medicine::with('category')->latest()->get();
-        return view('principal.medicines.index', compact('medicines'));
+        $medicines = Medicine::with('category')                          // carga la categoría en 1 sola consulta (evita N+1)
+            ->when($request->search, function ($query, $search) {        // solo si escribió algo en el buscador
+                $query->where('name', 'like', "%{$search}%");
+            })
+            ->when($request->category_id, function ($query, $categoryId) { // solo si eligió una categoría
+                $query->where('category_id', $categoryId);
+            })
+            ->when($request->boolean('low_stock'), function ($query) {    // solo si marcó "stock bajo"
+                $query->where('stock', '<=', self::LOW_STOCK);
+            })
+            ->orderBy('name')
+            ->get();
+
+        // Para llenar el <select> del filtro
+        $categories = Category::orderBy('name')->get();
+        $lowStock = self::LOW_STOCK;
+
+        return view('management.medicines.index', compact('medicines', 'categories', 'lowStock'));
     }
 
+    // Formulario para crear
     public function create()
     {
-        $categories = Category::where('status', true)->get();
-        return view('principal.medicines.create', compact('categories'));
+        $categories = Category::orderBy('name')->get();
+
+        return view('management.medicines.create', compact('categories'));
     }
 
+    // Guardar nuevo medicamento
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
-            'name' => 'required|string|max:120',
-            'generic_name' => 'nullable|string|max:120',
-            'presentation' => 'nullable|string|max:100',
+            'name' => 'required|max:120',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'expiration_date' => 'nullable|date',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048', // máx. 2 MB
         ]);
 
-        $data = $request->except('image');
+        // Si subió una imagen, se guarda en storage/app/public/medicines
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('medicines', 'public');
+            $validated['image'] = $request->file('image')->store('medicines', 'public');
         }
 
-        Medicine::create($data);
-        return redirect()->route('medicines.index')->with('success', 'Medicamento registrado correctamente.');
+        Medicine::create($validated);
+
+        return to_route('medicines.index')->with('ok', 'Medicamento registrado');
     }
 
+    // Formulario para editar
     public function edit(Medicine $medicine)
     {
-        $categories = Category::where('status', true)->get();
-        return view('principal.medicines.edit', compact('medicine', 'categories'));
+        $categories = Category::orderBy('name')->get();
+
+        return view('management.medicines.edit', compact('medicine', 'categories'));
     }
 
+    // Actualizar medicamento
     public function update(Request $request, Medicine $medicine)
     {
-        $request->validate([
+        $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
-            'name' => 'required|string|max:120',
-            'generic_name' => 'nullable|string|max:120',
-            'presentation' => 'nullable|string|max:100',
+            'name' => 'required|max:120',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'expiration_date' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        $data = $request->except('image', 'status');
-        $data['status'] = $request->has('status');
-
         if ($request->hasFile('image')) {
+            // Borra la imagen anterior y guarda la nueva
             if ($medicine->image) {
                 Storage::disk('public')->delete($medicine->image);
             }
-            $data['image'] = $request->file('image')->store('medicines', 'public');
+            $validated['image'] = $request->file('image')->store('medicines', 'public');
+        } else {
+            // Si no subió imagen nueva, se mantiene la actual
+            unset($validated['image']);
         }
 
-        $medicine->update($data);
-        return redirect()->route('medicines.index')->with('success', 'Medicamento actualizado correctamente.');
+        $medicine->update($validated);
+
+        return to_route('medicines.index')->with('ok', 'Medicamento actualizado');
     }
 
+    // Eliminar medicamento (solo si no se ha vendido)
     public function destroy(Medicine $medicine)
     {
+        if ($medicine->detailSales()->exists()) {
+            return to_route('medicines.index')->with('error', 'No se puede eliminar el medicamento porque tiene ventas registradas');
+        }
+
+        // Borra también su imagen
         if ($medicine->image) {
             Storage::disk('public')->delete($medicine->image);
         }
+
         $medicine->delete();
-        return redirect()->route('medicines.index')->with('success', 'Medicamento eliminado.');
+
+        return to_route('medicines.index')->with('ok', 'Medicamento eliminado');
     }
 }

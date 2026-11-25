@@ -4,67 +4,70 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class CustomerController extends Controller
 {
+    // Listado de clientes
     public function index()
     {
         $customers = Customer::latest()->get();
-        return view('principal.customers.index', compact('customers'));
+
+        return view('management.customers.index', compact('customers'));
     }
 
+    // Formulario para crear
     public function create()
     {
-        return view('principal.customers.create');
+        return view('management.customers.create');
     }
 
+    // Guardar nuevo cliente
     public function store(Request $request)
     {
-        $request->validate([
-            'dni' => 'required|string|max:15|unique:customers,dni',
-            'name' => 'required|string|max:120',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:120',
-            'address' => 'nullable|string|max:200',
+        $validated = $request->validate([
+            'name' => 'required|max:50',
+            'dni' => 'required|digits:8|unique:customers',
+            'phone' => 'nullable|digits:9',
+            'age' => 'nullable|integer|min:0|max:120',
         ]);
 
-        Customer::create($request->only('dni', 'name', 'phone', 'email', 'address'));
-        return redirect()->route('customers.index')->with('success', 'Cliente registrado correctamente.');
+        Customer::create($validated);
+
+        return to_route('customers.index')->with('ok', 'Cliente registrado');
     }
 
+    // Formulario para editar
     public function edit(Customer $customer)
     {
-        return view('principal.customers.edit', compact('customer'));
+        return view('management.customers.edit', compact('customer'));
     }
 
+    // Actualizar cliente
     public function update(Request $request, Customer $customer)
     {
-        $request->validate([
-            'dni' => 'required|string|max:15|unique:customers,dni,' . $customer->id,
-            'name' => 'required|string|max:120',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:120',
-            'address' => 'nullable|string|max:200',
+        $validated = $request->validate([
+            'name' => 'required|max:50',
+            // ignore(): el DNI no se repite, sin contar el cliente que se está editando
+            'dni' => ['required', 'digits:8', Rule::unique('customers')->ignore($customer->id)],
+            'phone' => 'nullable|digits:9',
+            'age' => 'nullable|integer|min:0|max:120',
         ]);
 
-        $customer->update([
-            'dni' => $request->dni,
-            'name' => $request->name,
-            'phone' => $request->phone,
-            'email' => $request->email,
-            'address' => $request->address,
-            'status' => $request->has('status'),
-        ]);
+        $customer->update($validated);
 
-        return redirect()->route('customers.index')->with('success', 'Cliente actualizado correctamente.');
+        return to_route('customers.index')->with('ok', 'Cliente actualizado');
     }
 
+    // Eliminar cliente (solo si no tiene ventas)
     public function destroy(Customer $customer)
     {
         if ($customer->sales()->exists()) {
-            return back()->with('error', 'No se puede eliminar: tiene ventas registradas.');
+            return to_route('customers.index')->with('error', 'No se puede eliminar el cliente porque tiene ventas registradas');
         }
+
         $customer->delete();
-        return redirect()->route('customers.index')->with('success', 'Cliente eliminado.');
+
+        return to_route('customers.index')->with('ok', 'Cliente eliminado');
     }
 }
