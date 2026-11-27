@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="San Juan - Sistema de Venta de Medicamentos">
-  <title>FARM SJB | Iniciar sesión</title>
+  <title>UPSJB_FARMACIA| Iniciar sesión</title>
   <link rel="stylesheet" href="{{ asset('css/bootstrap.css') }}">
   <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
+  @PwaHead
 </head>
 
 <body>
@@ -138,5 +139,6 @@
     submit.querySelector('.btn-label').textContent = 'Ingresando...';
   });
 </script>
+@RegisterServiceWorkerScript
 </body>
 </html>

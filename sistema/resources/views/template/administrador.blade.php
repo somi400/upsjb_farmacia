@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{{ asset('css/bootstrap.css') }}">
   <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
   @stack('styles')
+  @PwaHead
 </head>
 
 <body>
@@ -58,6 +59,6 @@
 <script src="{{ asset('js/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ asset('js/app.js') }}"></script>
 @stack('scripts')
-
+@RegisterServiceWorkerScript
 </body>
 </html>
